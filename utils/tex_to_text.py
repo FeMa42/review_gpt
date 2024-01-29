@@ -65,7 +65,7 @@ def extract_sections(tex_content):
     return extracted_sections
 
 
-def tex_to_sections(tex_file_path, output_dir, extract_file='extract.txt'):
+def tex_to_sections(tex_file_path, output_dir, extract_file='extract.txt', split_text=True):
     document_text = read_and_preprocess_tex_file(tex_file_path)
     sections = extract_sections(document_text)
     text = ''
@@ -84,6 +84,14 @@ def tex_to_sections(tex_file_path, output_dir, extract_file='extract.txt'):
     extract_path = os.path.join(output_dir, extract_file)
     with open(extract_path, 'w') as f:
         f.write(text)
+    if split_text:
+        outout_sections = sections
+    else:
+        outout_sections = []
+        outout_sections.append({
+            'title': "Whole text",
+            'content': text
+        })
     return sections
 
 

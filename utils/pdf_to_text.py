@@ -7,17 +7,23 @@ from nltk.tokenize import sent_tokenize, word_tokenize
 from utils.large_text_handler import split_text_file_by_keywords
 
 
-def pdf_to_sections(pdf_path, working_dir, keywords):
+def pdf_to_sections(pdf_path, working_dir, keywords, split_text=True):
 
     text = extract_pdf_text(pdf_path)
     extract_path = os.path.join(working_dir, 'extract.txt')
     with open(extract_path, 'w') as f:
                 f.write(text)
-    sections = split_text_file_by_keywords(
-        text, working_dir, keywords,
-        clean_extracted_chunk=True,
-        add_spaces_to_chunk=False)
-    
+    if split_text:
+        sections = split_text_file_by_keywords(
+             text, working_dir, keywords,
+             clean_extracted_chunk=True,
+             add_spaces_to_chunk=False)
+    else:
+        sections = []
+        sections.append({
+            'title': "Whole text",
+            'content': text
+        })
     return sections
 
 def extract_pdf_text(pdf_path, use_legacy=False):
