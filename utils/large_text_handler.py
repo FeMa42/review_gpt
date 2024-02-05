@@ -18,6 +18,29 @@ def split_text_file(file_path, chunk_size=1000):
             output_file.write(chunk)
 
 
+def split_markdown_file(text, split_text, projekt_name, seperator='#'):
+    if split_text:
+        chunks = text.split(seperator)
+        chunks = [chunk.strip() for chunk in chunks]
+        chunks = [chunk for chunk in chunks if chunk]
+        sections = []
+        for chunk in chunks:
+            title = chunk.split('\n')[0]
+            if len(title) > 100:
+                title = title[:100]
+            sections.append({
+                'title': title,
+                'content': chunk
+            })
+    else: 
+        sections = []
+        sections.append({
+            'title': projekt_name,
+            'content': text
+        })
+    return sections
+   
+
 def split_text_file_by_keywords(text, working_dir, keywords, clean_extracted_chunk, add_spaces_to_chunk):
 
     # Convert the text and keywords to lowercase for case-insensitive matching

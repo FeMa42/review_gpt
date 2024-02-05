@@ -1,25 +1,35 @@
 import os
 from utils.pdf_to_text import pdf_to_sections
-from utils.summary_creator_gpt import create_summary_chatgpt
-from utils.summary_creator_local import create_summary_huggingface
-from utils.large_text_handler import split_text_file_by_keywords
+from utils.llm_interface import interface_chatgpt, interface_huggingface
+from utils.prompt_generator import generate_prompt
+from utils.large_text_handler import split_text_file_by_keywords, split_markdown_file
 from utils.tex_to_text import tex_to_sections
 from utils.pdf_nougat import PDFNougat
 
 
 if __name__ == "__main__":
     input_file = '/Users/damian/Library/Mobile Documents/com~apple~CloudDocs/Projects/review_gpt/texts/SOIL/SOILTDM.pdf'
-    projekt_name = 'test'
+    projekt_name = 'soiltdm'
 
     # Extract text from PDF or use already extracted text
-    extract_method = 'txt'  # 'pdf', 'tex', 'txt'
+    # If you have a pdf I recommend 'nougat'; the alternative is 'pdf', 
+    # if the text is already extracted use 'txt', 
+    # if you have a tex file you can use 'tex'
+    extract_method = 'nougat' # 'nougat', 'pdf', 'txt', 'tex'
     
-    split_text = False  # if true we split the text into chunks based on keywords
-    # Keywords to split the text into sections for pdf review, summary 
-    keywords = ['Introduction', 'Methods', 'Results', 'Discussion', 'Conclusion', 'Acknowledgements', 'References']
+    # Split text into sections based on keywords or markdown headers
+    split_text = 'markdown'  # 'keywords', 'markdown', None
+    keywords = ['Introduction', 'Methods', 'Results', 'Discussion',
+                'Conclusion', 'Acknowledgements', 'References']
+    md_seperator = '#' # typical markdown header -> e.g. # Introduction
+    if split_text == 'markdown':
+        use_md_split = True
+    else:
+        use_md_split = False
 
-    # Model to use for review or summary
-    use_chatgpt = False  # if true we use chatgpt, if false we use huggingface
+    # Using a LLModel for review or summary
+    do_llm_processing = True  # if true we use the language model, if false we only extract the text
+    use_chatgpt = True  # if true we use chatgpt, if false we use a huggingface model
     if use_chatgpt:
         model = 'gpt-4-turbo-preview'  # use chatgpt for review
     else:
@@ -27,6 +37,12 @@ if __name__ == "__main__":
         # model for Metal GPUs with MLX: "NeuralBeagle14-7B-mlx" (I tested this model and it works)
         model = "NeuralBeagle14-7B-mlx"  # 'NeuralBeagle14-7B-mlx', 'NeuralBeagle14-7B'
     is_summary = False  # if false we review the text, if true we create a summary
+
+    # Prompt generation and compression
+    # if you compress the prompt think about activating the the text splitting (using markdown headers if you extracted the pdf using nougat)
+    # if compress_prompt is false we use the full text as prompt for the language model
+    compress_prompt = True
+    max_compressed_tokens = 8000  # maximum tokens for the compressed prompt
 
     # Create working directory
     working_dir = os.path.join("./texts/", projekt_name)
@@ -39,74 +55,36 @@ if __name__ == "__main__":
         # Extract text from PDF using PyPDF2
         print("Extracting text from PDF file")
         # Split large text into chunks based on keywords
-        sections = pdf_to_sections(input_file, working_dir, keywords, split_text=split_text)
+        sections = pdf_to_sections(input_file, working_dir, keywords, split_text=False)
         print("Extracted text from PDF file")
     elif extract_method == 'nougat':
         # Extract text from PDF using Nougat
         print("Extracting text from PDF file")
         pdf_nougat = PDFNougat()
-        sections = pdf_nougat.extract_text_from_pdf(input_file, working_dir)
+        sections = pdf_nougat.extract_text_from_pdf(
+            input_file, working_dir, use_split=use_md_split, projekt_name=projekt_name, md_seperator=md_seperator)
         print("Extracted text from PDF file")
     elif extract_method == 'tex':
         # Extract text from tex file. 
         # This can work better than the pdf extraction, because there might be less formatting issues. 
         print("Extracting text from tex file")
         sections = tex_to_sections(
-             input_file, working_dir, extract_file='extract.txt', split_text=split_text)
+             input_file, working_dir, extract_file='extract.txt', split_text=True)
         print("Extracted text from tex file")
-    elif extract_method == 'txt-split':
-        # Work with already split text files. 
-        section_files = []
-        i = 1
-        while True:
-            try:
-                filename = f'section_{i}.txt'
-                file_path = os.path.join(working_dir, filename)
-                with open(file_path, 'r', encoding='utf-8') as input_file:
-                    content = input_file.read()
-                    section_files.append(content)
-                    i += 1
-            except FileNotFoundError:
-                break
-        # Now section_files is a list containing the content of each section file
-        sections = []
-        print("found " + str(len(section_files)) + " section files")
-        if len(section_files) <= len(section_titles):
-            print("found less than or equal amount of section files compared to keywords")
-            use_section_titles = True
-        else:
-            print("found more section files than section titles")
-            use_section_titles = False
-        for idx, content in enumerate(section_files):
-            if use_section_titles:
-                title = section_titles[idx]
-            else:
-                title = f'section_{idx+1}.txt'
-            content = content
-            sections.append({
-                'title': title,
-                'content': content
-            })
-    else: 
-        if split_text:
-            print("Reading text from file")
-            with open(extract_path, 'r') as f:
-                text = f.read()
+    else: # extract_method == 'txt'
+        print("Reading text from file")
+        with open(extract_path, 'r') as f:
+            text = f.read()
+        if split_text == 'keywords':
             sections = split_text_file_by_keywords(
                 text, working_dir, keywords,
                 clean_extracted_chunk=True,
                 add_spaces_to_chunk=False)  
             print("Extracted text from text file and splitted into chunks")
         else:
-            print("Reading text from file")
-            with open(extract_path, 'r') as f:
-                text = f.read()
-            sections = []
-            sections.append({
-                'title': projekt_name,
-                'content': text
-            })
-            print("Extracted text from text file without splitting into chunks")
+            sections = split_markdown_file(
+                text, split_text=use_md_split, projekt_name=projekt_name, seperator=md_seperator)
+            print("Extracted text from text file and splitted into chunks")
 
     # Create review or summary 
     if is_summary:
@@ -115,19 +93,28 @@ if __name__ == "__main__":
         method = 'review'
     combined_summary_path = os.path.join(working_dir, f'{method} using {model}.txt')
     with open(combined_summary_path, 'w', encoding='utf-8') as output_file:
+        input_text = []
         for section in sections:
-            content = section['content']
-            title = section['title']
-            print(f"Start {method} of {title} using {model} ...")
+            input_text.append(section['content'])
+        # Generate compressed prompt for review or summary
+        print(f"Start prompt generation for {method} ...")
+        prompt = generate_prompt(input_text, compress_prompt=compress_prompt,
+                                 max_tokens=max_compressed_tokens, 
+                                 is_summary=is_summary, working_dir=working_dir)
+
+        if do_llm_processing:
+            # Create review or summary using chatgpt or huggingface model
+            print(f"Start {method} using {model} ...")
             if use_chatgpt:
-                summary_part, finish_reason = create_summary_chatgpt(
-                    content, section=f"{title} section" , model=model, is_summary=is_summary)
-                print(f"Finished {method} of {title} using {model} because {finish_reason}")
+                summary_part, finish_reason = interface_chatgpt(prompt, model=model)
+                print(f"Finished {method} using {model} because {finish_reason}")
             else:
-                summary_part = create_summary_huggingface(
-                    content, model=model, is_summary=is_summary)
-                # print(f"Finished {method} of {title} using {model}")
-                print(f"Finished review of {title} using {model}")
-            output_file.write(f' {method} of {title}\n')
+                summary_part = interface_huggingface(
+                    prompt, model=model, max_tokens=4000)
+                print(f"Finished review using {model}")
+            output_file.write(f' {method}\n')
             output_file.write(summary_part)
             output_file.write('\n')
+        else:
+            print(f"Only extracted text, no {method} using {model} was created")
+            output_file.write(f'Only extracted text, no {method} using {model} was created')

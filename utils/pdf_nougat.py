@@ -12,7 +12,7 @@ from PIL import Image
 from tqdm import tqdm
 from transformers import StoppingCriteria, StoppingCriteriaList
 from collections import defaultdict
-
+from utils.large_text_handler import split_markdown_file
 
 class RunningVarTorch:
     def __init__(self, L=15, norm=False):
@@ -121,7 +121,7 @@ class PDFNougat:
         if return_pil:
             return pillow_images
         
-    def extract_text_from_pdf(self, pdf_path, output_dir):
+    def extract_text_from_pdf(self, pdf_path, output_dir, use_split=False, projekt_name="None", md_seperator="#"):
         images = self.rasterize_paper(pdf=pdf_path, return_pil=True)
         text = ""
         # for image in images:
@@ -148,9 +148,5 @@ class PDFNougat:
         extract_path = os.path.join(output_dir, 'extract.txt')
         with open(extract_path, 'w') as f:
             f.write(text)
-        sections = []
-        sections.append({
-            'title': "Whole text",
-            'content': text
-        })
+        sections = split_markdown_file(text, use_split, projekt_name, seperator=md_seperator)
         return sections

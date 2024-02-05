@@ -8,7 +8,7 @@ Tested on python 3.8.15
 
 ## Requirements
 install the following packages:
-```pip install PyPDF2 textract nltk openai torch pytorch_pretrained_bert plasTeX```
+```pip install PyPDF2 textract nltk openai torch pytorch_pretrained_bert plasTeX transformers accelerate llmlingua```
 
 ## OpenAI API key 
 
